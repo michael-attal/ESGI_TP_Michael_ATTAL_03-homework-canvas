@@ -12,9 +12,9 @@ import * as Color from "./color.js";
  * Users of the lib should build the shapes with helper functions such as
  * `square`, `circle` or `group`.
  * @typedef {
-   | {kind: "Square";color: Color;side : number; xCenter: number; yCenter:number }
    | {kind: "Circle";radius: number;color: Color; xCenter: number; yCenter: number}
    | {kind: "Group"; shapes : Array<Shape>}
+   | { kind: "Polygon", points: Array<{x: number; y:number}>, color: Color;}
    } Shape
 */
 
@@ -24,7 +24,14 @@ import * as Color from "./color.js";
  * @returns {Shape}
  */
 export function square(color, side) {
-    return { kind: "Square", color, side, xCenter: 0, yCenter: 0 };
+    const halfSide = side / 2;
+    const points = [
+        { x: -halfSide, y: -halfSide },
+        { x: halfSide, y: -halfSide },
+        { x: halfSide, y: halfSide },
+        { x: -halfSide, y: halfSide },
+    ];
+    return polygon(color, points);
 }
 
 /**
@@ -56,9 +63,11 @@ export function group(shapes) {
 export function move(dx, dy, shape) {
     switch (shape.kind) {
         case "Circle":
-        case "Square":
             shape.xCenter += dx;
             shape.yCenter += dy;
+            return shape;
+        case "Polygon":
+            shape.points = shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
             return shape;
         case "Group":
             shape.shapes.forEach((subShape) => move(dx, dy, subShape));
@@ -89,8 +98,10 @@ function render(shape, context) {
         case "Circle":
             renderCircle(shape.color, shape.xCenter, shape.yCenter, shape.radius, context);
             break;
-        case "Square":
-            renderSquare(shape.color, shape.xCenter, shape.yCenter, shape.side, context);
+        case "Polygon":
+            const path = polygonToPath(shape.points);
+            context.fillStyle = Color.render(shape.color);
+            context.fill(path);
             break;
         case "Group":
             shape.shapes.forEach((shape) => render(shape, context));
@@ -116,23 +127,44 @@ function renderCircle(color, xCenter, yCenter, radius, context) {
 }
 
 /**
- * @param {Color} color
- * @param {number} side
- * @param {number} xCenter
- * @param {number} yCenter
- * @param {CanvasRenderingContext2D} context
+ * @returns {Path2D}
+ * @param {Array<{x:number;y:number}>} points
  */
-function renderSquare(color, xCenter, yCenter, side, context) {
-    // Note: we could have used `context.rect` but the following
-    // code will be more easily translatable to draw polygon
-    // (see part 2 of the homework)
+function polygonToPath(points) {
     const path = new Path2D();
-    const halfSide = side / 2;
-    path.moveTo(xCenter - halfSide, yCenter - halfSide);
-    path.lineTo(xCenter + halfSide, yCenter - halfSide);
-    path.lineTo(xCenter + halfSide, yCenter + halfSide);
-    path.lineTo(xCenter - halfSide, yCenter + halfSide);
+    path.moveTo(points[0].x, points[0].y);
+    points.forEach((point, index) => {
+        if (index > 0) {
+            path.lineTo(point.x, point.y);
+        }
+    });
     path.closePath();
-    context.fillStyle = Color.render(color);
-    context.fill(path);
+    return path;
+}
+
+/**
+ * @param {Color} color
+ * @param {Array<{x:number; y:number}>} points
+ * @returns {Shape}
+ */
+export function polygon(color, points) {
+    return { kind: "Polygon", color, points };
+}
+
+/**
+ * @param {Color} color
+ * @param {number} width
+ * @param {number} height
+ * @returns {Shape}
+ */
+export function rectangle(color, width, height) {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const points = [
+        { x: -halfWidth, y: -halfHeight },
+        { x: halfWidth, y: -halfHeight },
+        { x: halfWidth, y: halfHeight },
+        { x: -halfWidth, y: halfHeight },
+    ];
+    return polygon(color, points);
 }
